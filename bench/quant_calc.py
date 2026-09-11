@@ -38,8 +38,10 @@ MODELS = {
     "qwen3.5-32b": (32.0, 32.0),
 }
 
-RAM_HEADROOM_GB = 1.5  # OS + runtime + unquantized KV-cache basics
-KV_BYTES_PER_TOKEN_PER_LAYER = 2 * 2 * 2  # K+V, fp16, 2 heads-approx floor
+RAM_HEADROOM_GB = 1.5  # OS + runtime + fragmentation
+# KV cache is NOT quantized on the NPU. Rough floor per token per layer:
+# 2 (K+V) * 8 GQA heads * 128 head_dim * 2 bytes (fp16) = 4096 bytes.
+KV_BYTES_PER_TOKEN_PER_LAYER = 4096
 
 
 def free_ram_gb() -> float:
@@ -65,8 +67,9 @@ def model_gb(params_b: float, quant: str) -> float:
 
 
 def kv_gb(params_b: float, active_b: float, ctx: int) -> float:
-    # rough floor: KV grows with active layers; treat 1B params ~ 8 layers
-    layers = max(8, int(active_b * 8) if active_b < params_b else params_b)
+    # rough estimate: layer count scales with total params (~0.6B/layer),
+    # clamped to what current model families actually use
+    layers = min(80, max(16, round(params_b / 0.6)))
     return layers * ctx * KV_BYTES_PER_TOKEN_PER_LAYER / 1024 ** 3
 
 
