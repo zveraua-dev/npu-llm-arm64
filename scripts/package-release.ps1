@@ -4,8 +4,10 @@
 param(
     [string]$LabDir = "",
     [string]$Version = "0.1.0",
-    [string]$OutDir = "$PSScriptRoot..\dist"
+    [string]$OutDir = ""
 )
+
+if (-not $OutDir) { $OutDir = [System.IO.Path]::GetFullPath("$PSScriptRoot\..\dist") }
 
 if (-not $LabDir) {
     $candidates = @(
@@ -21,7 +23,7 @@ if (-not $LabDir) { throw "NPU lab build not found; pass -LabDir with a bin\hexa
 
 $hexDir = Join-Path $LabDir "bin\hexagon"
 if (-not (Test-Path (Join-Path $hexDir "lib\libggml-htp-v81.so"))) {
-    throw "libggml-htp-v*.so not found under $hexDir\lib — was the Hexagon build completed?"
+    throw "libggml-htp-v*.so not found under $hexDir\lib - was the Hexagon build completed?"
 }
 
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
@@ -32,7 +34,13 @@ if (Test-Path $zip) { Remove-Item $zip }
 Compress-Archive -Path (Join-Path $hexDir "bin\*"), (Join-Path $hexDir "lib\*") -DestinationPath $zip
 
 $soFiles = Get-ChildItem (Join-Path $hexDir "lib") -Filter "libggml-htp-*.so"
-"Release archive: $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB)"
+$zipItem = Get-Item $zip
+$zipMB = [math]::Round($zipItem.Length / 1MB, 1)
+$catItem = Get-Item (Join-Path $hexDir "lib\libggml-htp.cat")
+"Release archive: $zip ($zipMB MB)"
 "HTP libraries included (signing targets):"
-$soFiles | ForEach-Object { "  $($_.Name)  ($([math]::Round($_.Length / 1KB)) KB)" }
-"  $((Get-Item (Join-Path $hexDir 'lib\libggml-htp.cat')).Name)  (catalog)"
+foreach ($f in $soFiles) {
+    $kb = [math]::Round($f.Length / 1KB)
+    "  $($f.Name)  ($kb KB)"
+}
+"  $($catItem.Name)  (catalog)"
