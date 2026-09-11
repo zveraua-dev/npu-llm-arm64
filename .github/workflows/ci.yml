@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    name: Smoke tests (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax check
+        run: python -m py_compile llm_engines.py bench/bench_extract.py bench/quant_calc.py
+      - name: Engine import and pure helpers
+        run: python -c "import llm_engines as e; print('quants:', sorted(e.NPU_QUANTS)); print('quant_of:', e.quant_of('gpt-oss-20b-MXFP4.gguf'))"
+      - name: Quant calculator
+        run: python bench/quant_calc.py 8B --ctx 8192
+      - name: Benchmark harness argument check
+        run: python bench/bench_extract.py --help
